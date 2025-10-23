@@ -10,7 +10,7 @@ router = APIRouter()
 @router.post("/completions")
 async def chat_completions(request: ChatCompletionRequest):
     # print(request)
-
+     
     if request.stream:
         return StreamingResponse(
             _resp_async_generator(request), media_type="application/x-ndjson"

@@ -1,4 +1,6 @@
+import asyncio
 import json
+from time import time
 from typing import List, Literal, TypedDict
 from ollama import ChatResponse, chat
 from pydantic import BaseModel
@@ -13,11 +15,14 @@ from models.documents_models import (
     LetterOfCredit,
 )
 from langgraph.graph import StateGraph, END
+from services.stream_service import process_part
 from services.prompt_service import (
     prepare_messages,
     prompt_instruction_extract_documents_info,
     prompt_instruction_validate_documents,
 )
+
+
 
 
 class State(TypedDict, total=False):
@@ -43,20 +48,25 @@ class RequiredDocuments(BaseModel):
     ]
 
 
-def validate_documents(state: State) -> State:
+async def  validate_documents(state: State) -> State:
     """Validate that all required documents are present in the state."""
+    
+    print('Validating provided documents...')
     response: ChatResponse = qween_llm(
         prepare_messages(state["request"], prompt_instruction_validate_documents),
         RequiredDocuments.model_json_schema(),
     )
-
+    await process_part("Starting document validation...\n")
     foundedDocuments = RequiredDocuments(**json.loads(response.message.content))
     state["is_valid"] = set(foundedDocuments.types) == set(required_documents)
+    msg = "You have provided all the needed document" if  state["is_valid"] == True else "some documents are missing or invalid"
+    await process_part(msg + "\n")
     return state
 
 
-def extract_documents_info(state: State) -> State:
+async def extract_documents_info(state: State) -> State:
     """Extract information from the documents and store it in the state."""
+    await process_part('Trying extracting informations from documents' + "\n")
     response = qween_llm(
         prepare_messages(state["request"], prompt_instruction_extract_documents_info),
         DocumentsModel.model_json_schema(),
@@ -92,6 +102,7 @@ def extract_documents_info(state: State) -> State:
 
     state["documents"] = DocumentsModel(**json.loads(response.message.content))
     state["is_valid"] = True
+    await process_part('Documents information extracted successfully' + "\n")
     return state
 
 
@@ -108,6 +119,9 @@ def generate_report(state: State) -> State:
     """Generate a report based on the validated documents."""
     # For simplicity, let's just print a message.
     print("Generating report based on the documents")
+    
+    
+    
     return state
 
 def handle_invalide_documents(state: State) -> State:

@@ -1,7 +1,6 @@
 from datetime import date
 from typing import List
 from pydantic import BaseModel
-
 from models.documents_models import DocumentsModel
 
 
