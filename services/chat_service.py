@@ -1,66 +1,33 @@
-import json
-import time
-from ollama import AsyncClient
-from models.chat_models import ChatCompletionRequest, DocumentContent, ImageContent, TextContent
-from typing import List
-from tools.tools import pdf_base64_to_image_base64
+from graph.graph_excecutor import compile_graph
+from models.chat_models import ChatCompletionRequest
+from models.documents_models import DocumentsModel
 
-
-def prepare_messages(request: ChatCompletionRequest) -> List[dict]:
-    """
-    Convert ChatCompletionRequest messages into a list of dicts ready for the client.
-    """
-    prepared_messages = []
-
-    for msg in request.messages:
-        if isinstance(msg.content, str):
-            prepared_messages.append({"role": msg.role, "content": msg.content})
-        else:
-            for item in msg.content:
-                if isinstance(item, TextContent):
-                    prepared_messages.append({"role": msg.role, "content": item.text})
-                elif isinstance(item, ImageContent):
-                    url = item.image_url.url
-                    url = url.split(",")[1] if "," in url else url
-                    prepared_messages.append({
-                        "role": msg.role,
-                        "content": "Give a short description about the image",
-                        "images": [url]
-                    })
-                elif isinstance(item, DocumentContent):
-                    pdf_base64 = item.file.file_data
-                    prepared_messages.append({
-                            "role": msg.role,
-                            "content": "Give a short description about these images",
-                            "images": [image for image in pdf_base64_to_image_base64(pdf_base64)]
-                        })
-    return prepared_messages
-
-
-
+graph = compile_graph()
 
 async def _resp_async_generator(request: ChatCompletionRequest):
-    client = AsyncClient()
+    # client = AsyncClient()
     # print(request)
-    messages = prepare_messages(request)
-    print("Prepared messages:", messages)
-    stream = await client.chat(
-        stream=True,
-        model="qwen3-vl:235b-cloud",
-        messages=messages,
-    )
-    id = 0
-    async for event in stream:
-        if event.message.content:
-            chunk = {
-                "id": str(id),
-                "object": "chat.completion.chunk",
-                "created": time.time(),
-                "model": "ok",
-                "choices": [{"index": id, "delta": {"content": event.message.content}}],
-            }
-            id += 1
-            yield f"data: {json.dumps(chunk)}\n\n"
+    state = {"request": request, "is_valid": False} 
+ 
+    graph.invoke(state)
+    # stream = await client.chat(
+    #     stream=True,
+    #     model="qwen3-vl:235b-cloud",
+    #     messages=messages,
+    #     format=DocumentsModel.model_json_schema()
+    # )
+    # id = 0
+    # async for event in stream:
+    #     if event.message.content:
+    #         chunk = {
+    #             "id": str(id),
+    #             "object": "chat.completion.chunk",
+    #             "created": time.time(),
+    #             "model": "ok",
+    #             "choices": [{"index": id, "delta": {"content": event.message.content}}],
+    #         }
+    #         id += 1
+    #         yield f"data: {json.dumps(chunk)}\n\n"
     yield "data: [DONE]\n\n"
 
 
