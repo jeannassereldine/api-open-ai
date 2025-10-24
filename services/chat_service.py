@@ -4,12 +4,8 @@ import json
 from graph.graph_excecutor import compile_graph
 from models.chat_models import ChatCompletionRequest
 from models.documents_models import DocumentsModel
-from services.stream_service import process_part, stream_queue
 from typing import AsyncGenerator
-
 graph = compile_graph()
-
-
 import asyncio
 import json
 from typing import AsyncGenerator
@@ -17,32 +13,36 @@ from typing import AsyncGenerator
 import asyncio
 import json
 from typing import AsyncGenerator
+from datetime import datetime
+
 
 async def _resp_async_generator(request) -> AsyncGenerator[str, None]:
     state = {"request": request, "is_valid": False}
-    invoked_task = asyncio.create_task(graph.ainvoke(state))
-    
-    
-    while True:
-        print('ok')
-        chunk = await stream_queue.get()
-        if chunk == "[DONE]":
-            break
-
-        # Start graph.ainvoke exactly once
-        if invoked_task is None:
-            invoked_task = asyncio.create_task(graph.ainvoke(state))
-
+    index = 0
+    for chunk in graph.stream(input=state, stream_mode="custom"):
+        print("Yielding chunk:", chunk)
+        id_counter ="toto"
+        
+        chunk = {
+        "id": str(id_counter),
+        "object": "chat.completion.chunk",
+        "created":datetime.now().timestamp(),
+        "model": "qwen3-vl:235b-cloud",
+        "choices": [{"index": index, "delta": {"content": chunk}}],
+       }
         yield f"data: {json.dumps(chunk)}\n\n"
-    await invoked_task()
-    yield "data: [DONE]\n\n"
-    process_part("[DONE]")
-    # Ensure graph.ainvoke runs at least once and completes5ala
+        await asyncio.sleep(0)  # Simulate processing delay
+        
+        index += 1
+        
+        # yield f"data: {chunk}\n\n"
+        
     
-
-
-
-
+    yield "data: [DONE]\n\n"
+    
+    
+    
+    
 
 async def process_chat_request(request: ChatCompletionRequest):
     if request.messages:
