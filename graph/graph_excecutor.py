@@ -6,7 +6,7 @@ from ollama import ChatResponse, chat
 from pydantic import BaseModel
 from business.rules import validate_letter_of_credit
 from llm.qween_llm import qween_llm, write_why_a_document_is_invalid
-from models.chat_models import ChatCompletionRequest
+from models.chat_models import AnalyseLCRequest
 from langgraph.types import interrupt, Command
 
 from models.documents_models import (
@@ -28,7 +28,7 @@ from services.prompt_service import (
 class State(TypedDict, total=False):
     is_valid: bool
     documents: DocumentsModel
-    request: ChatCompletionRequest
+    request: AnalyseLCRequest
     non_compliance_reasons: List[str]
 
 
@@ -199,15 +199,6 @@ def compile_graph():
    
     builder.add_edge("generate_report", END)
     builder.add_edge("handle_invalide_documents", 'ask_for_sending_email')
-    # builder.add_conditional_edges(
-    # "ask_for_sending_email",
-    #     route_email_approval,
-    #     {
-    #         "send_email": "send_email",
-    #         END: END
-    #     }
-    # )
-    
     builder.add_edge("send_email", END)
     
     return builder.compile()

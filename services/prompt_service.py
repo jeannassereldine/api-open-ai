@@ -1,52 +1,42 @@
 from typing import List
-from models.chat_models import (
-    ChatCompletionRequest,
-    DocumentContent,
-    ImageContent,
-    TextContent,
-)
-from tools.tools import pdf_base64_to_image_base64
 
+
+from models.chat_models import (
+    AnalyseLCRequest,
+    Image,
+    Document,
+)
+from tools.tools import pdf_base64_to_images_base64
 
 def prepare_messages(
-    request: ChatCompletionRequest, system_instruction: str
+    request: AnalyseLCRequest, system_instruction: str
 ) -> List[dict]:
     """
-    Convert ChatCompletionRequest messages into a list of dicts ready for the client.
+    Convert AnalyseLCRequest messages into a list of dicts ready for the client.
     """
     prepared_messages = []
 
-    for msg in request.messages:
-        if isinstance(msg.content, str):
-            prepared_messages.append({"role": msg.role, "content": msg.content})
-        else:
-            for item in msg.content:
-                if isinstance(item, TextContent):
-                    prepared_messages.append({"role": msg.role, "content": item.text})
-                elif isinstance(item, ImageContent):
-                    url = item.image_url.url
-                    url = url.split(",")[1] if "," in url else url
-                    prepared_messages.append({"role": msg.role, "images": [url]})
-                elif isinstance(item, DocumentContent):
-                    pdf_base64 = item.file.file_data
-                    prepared_messages.append(
-                        {
-                            "role": msg.role,
+    for img in request.images:
+      url = img.image_url_base64
+      url = url.split(",")[1] if "," in url else url 
+      prepared_messages.append({"role": 'user', "images": [url]}) 
+                
+    for doc in request.documents:
+         pdf_base64 = doc.file_data_base64
+         prepared_messages.append(
+                    {
+                            "role": 'user',
                             "images": [
                                 image
-                                for image in pdf_base64_to_image_base64(pdf_base64)
+                                for image in pdf_base64_to_images_base64(pdf_base64)
                             ],
                         }
-                    )
+                    )                
 
-        prepared_messages.append(
+    prepared_messages.append(
             {
                 "role": "system",
                 "content": system_instruction,
-                #  """You are a helpful AI assistant that extracts data from the provided pictures of documents
-                # and presents it in a structured JSON format as per the specified schema.,
-                # make sure to extract one class exactly from every picture provided and return a single JSON object
-                # """
             }
         )
     return prepared_messages

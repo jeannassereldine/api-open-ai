@@ -2,8 +2,6 @@ import asyncio
 from datetime import time
 import json
 from graph.graph_excecutor import compile_graph
-from models.chat_models import ChatCompletionRequest
-from models.documents_models import DocumentsModel
 from typing import AsyncGenerator
 graph = compile_graph()
 import asyncio
@@ -82,11 +80,3 @@ async def _resp_async_generator(request) -> AsyncGenerator[str, None]:
     
     
     
-
-async def process_chat_request(request: ChatCompletionRequest):
-    if request.messages:
-        resp_content = "As a mock AI Assistant, I can only echo your last message:"
-    else:
-        resp_content = "As a mock AI Assistant, I can only echo your last message, but there wasn't one!"
-
-    return resp_content

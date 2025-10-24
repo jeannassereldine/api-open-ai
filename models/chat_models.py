@@ -1,34 +1,16 @@
-from typing import List, Optional, Union, Literal
-from pydantic import BaseModel
+from typing import List, Literal
+from pydantic import BaseModel, Field
 
 
-class TextContent(BaseModel):
-    type: Literal["text"]
-    text: str
-
-class  ImageUrl(BaseModel):
-    url: str
-
-class ImageContent(BaseModel):
-    type: Literal["image_url"]
-    image_url: ImageUrl
-
-class FileContent(BaseModel):
-    file_data: str
+class Image(BaseModel):
+    type: Literal['image']
+    image_url_base64: str
     
-class DocumentContent(BaseModel):
-    type: Literal["file"]
-    file: FileContent
+class Document(BaseModel):
+    type: Literal['pdf_file']
+    file_data_base64: str
+    
 
-
-class Message(BaseModel):
-    role: str
-    content: Union[str, List[Union[TextContent, ImageContent, DocumentContent]]]
-
-
-class ChatCompletionRequest(BaseModel):
-    model: Optional[str] = "mock-gpt-model"
-    messages: List[Message]
-    max_tokens: Optional[int] = 512
-    temperature: Optional[float] = 0.1
-    stream: Optional[bool] = False
+class AnalyseLCRequest(BaseModel):
+    images: List[Image] = Field(default_factory=list)
+    documents: List[Document] = Field(default_factory=list)
