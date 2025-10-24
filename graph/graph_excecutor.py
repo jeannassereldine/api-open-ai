@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from business.rules import validate_letter_of_credit
 from llm.qween_llm import qween_llm, write_why_a_document_is_invalid
 from models.chat_models import ChatCompletionRequest
+from langgraph.types import interrupt, Command
+
 from models.documents_models import (
     BillOfLading,
     CertificateOfOrigin,
@@ -127,9 +129,6 @@ def generate_report(state: State) -> State:
     """Generate a report based on the validated documents."""
     # For simplicity, let's just print a message.
     print("Generating report based on the documents")
-    
-    
-    
     return state
 
 def handle_invalide_documents(state: State) -> State:
@@ -138,9 +137,30 @@ def handle_invalide_documents(state: State) -> State:
     writer = get_stream_writer()
     writer("The provided documents are invalid for the following reasons:\n")
     reasons = state.get("non_compliance_reasons", [])
-    write_why_a_document_is_invalid(reasons)
+    # write_why_a_document_is_invalid(reasons)
     return state
 
+
+
+def ask_for_sending_email_node(state: State) -> Command[Literal['send_email', '__end__']]:
+    # Pause execution; payload shows up under result["__interrupt__"]
+    print("Asking user for email sending approval...")
+    is_approved = interrupt({
+        "question": "Do you want to proceed with sending email?",
+    })
+    
+    print("User approval status:")
+
+    # Route based on the response
+    if is_approved:
+        return Command(goto='send_email')  # Runs after the resume payload is provided
+    else:
+        return Command(goto='__end__')
+    
+def send_email_node(state: State) -> State:
+    print("Sending email with the report...")
+    return state 
+    
 
 def route_by_state(state: State) -> str:
     if state["is_valid"]:
@@ -157,6 +177,8 @@ def compile_graph():
     builder.add_node("validate_information", validate_information)
     builder.add_node("generate_report", generate_report)
     builder.add_node("handle_invalide_documents", handle_invalide_documents)
+    builder.add_node("ask_for_sending_email", ask_for_sending_email_node)
+    builder.add_node("send_email", send_email_node)
    
     builder.add_conditional_edges(
         "validate_documents",
@@ -174,8 +196,18 @@ def compile_graph():
         "validate_information",
         route_by_state,
         {'invalide_documents': 'handle_invalide_documents', "ok": "generate_report"})
-    
-
+   
     builder.add_edge("generate_report", END)
-    builder.add_edge("handle_invalide_documents", END)
+    builder.add_edge("handle_invalide_documents", 'ask_for_sending_email')
+    # builder.add_conditional_edges(
+    # "ask_for_sending_email",
+    #     route_email_approval,
+    #     {
+    #         "send_email": "send_email",
+    #         END: END
+    #     }
+    # )
+    
+    builder.add_edge("send_email", END)
+    
     return builder.compile()
