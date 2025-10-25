@@ -1,6 +1,7 @@
 import base64
 from io import BytesIO
 from pdf2image import convert_from_bytes
+from langgraph.config import get_stream_writer
 
 def pdf_base64_to_images_base64(pdf_base64: str, dpi=200, img_format="PNG"):
     """
@@ -22,6 +23,8 @@ def pdf_base64_to_images_base64(pdf_base64: str, dpi=200, img_format="PNG"):
 
     # Convert PDF pages to PIL Images
     images = convert_from_bytes(pdf_bytes, dpi=dpi)
+    writer = get_stream_writer()
+    writer('Start processing pdf\n')
 
     # Convert each page to base64
     base64_images = []
@@ -30,5 +33,6 @@ def pdf_base64_to_images_base64(pdf_base64: str, dpi=200, img_format="PNG"):
         img.save(buffer, format=img_format)
         img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
         base64_images.append(img_b64)
+    writer('PDF converted to images')
 
     return base64_images

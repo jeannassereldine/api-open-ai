@@ -2,80 +2,59 @@ import asyncio
 from datetime import time
 import json
 from graph.graph_excecutor import compile_graph
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Literal
+from models.chat_models import AnalyseLCRequest, ResumeRequest
 graph = compile_graph()
 import asyncio
 import json
 from typing import AsyncGenerator
-
 import asyncio
 import json
 from typing import AsyncGenerator
 from datetime import datetime
+from langgraph.types import Command
+import uuid
 
-
-async def create_chunk(index: int, content, chunk_type: str = "stream"):
-    """
-    Create a JSON-compatible SSE chunk with metadata and content.
-    """
-    id_counter = "toto"
-    chunk = {
-        "id": str(id_counter),
-        "object": "chat.completion.chunk",
-        "created": datetime.now().timestamp(),
-        "model": "qwen3-vl:235b-cloud",
-        "choices": [
-            {"index": index, "delta": {"type": chunk_type, "content": content}}
-        ],
-    }
-    return f"data: {json.dumps(chunk)}\n\n"
-
-
-async def _resp_async_generator(request) -> AsyncGenerator[str, None]:
+async def _resp_async_generator(req:AnalyseLCRequest | ResumeRequest) -> AsyncGenerator[str, None]:
     """
     Async generator to stream chunks from LangGraph including interrupts.
     """
-    config = {"configurable": {"thread_id": "thread-1"}}
-    state = {"request": request, "is_valid": False}
+    thread_id =  str(uuid.uuid4()) if  isinstance(req,AnalyseLCRequest)  else req.thread_id
+    config = {"configurable": {"thread_id":  thread_id}}
+    input =   ({"request": req, "is_valid": False} if  isinstance(req,AnalyseLCRequest) 
+             else  Command(resume=req.answer, interrupt_id=req.interrupt_id))
     index = 0
 
     for event_type, payload in graph.stream(
-        input=state, stream_mode=["custom", "updates"], config=config
+        input=input, stream_mode=["custom", "updates"], config=config
     ):
         print("Yielding chunk:", (event_type, payload))
 
-        #  Handle INTERRUPT (pause and ask user)
+        # Handle INTERRUPT (pause and ask user)
         if event_type == "updates" and "__interrupt__" in payload:
             interrupt_obj = payload["__interrupt__"][0]
             question = interrupt_obj.value.get("question")
             interrupt_id = interrupt_obj.id
-            print(f"Interrupt received: {question} (id={interrupt_id})")
-            yield await create_chunk(index, question, "stream")
-            # interrupt_data = {
-            #     "type": "interrupt",
-            #     "id": interrupt_id,
-            #     "question": question,
-            # }
-            # yield await create_chunk(index, interrupt_data, "interrupt")
+            yield f"event: interrupt\ndata: {json.dumps({ 'question': question, 'interruptId': interrupt_id , 'thread_id':thread_id })}\n\n"
             continue
 
-        #  Handle CUSTOM (normal stream text from nodes)
+        # Handle CUSTOM (normal stream text from nodes)
         elif event_type == "custom":
-            yield await create_chunk(index, payload, "stream")
+            yield f"event: message\ndata: {json.dumps(payload)}\n\n"
 
-        #  Handle END (finished flow)
+        # Handle END (finished flow)
         elif event_type == "end":
-            yield await create_chunk(index, {"type": "done"}, "done")
+            yield f"event: message\ndata: {json.dumps(payload)}\n\n"
             break
 
-        #  Just yield nothing else if unknown
+        # Just yield nothing else if unknown
         else:
             print(f"Unknown event type: {event_type}")
-
+        # let you send stream to the client
         await asyncio.sleep(0)
         index += 1
 
-    yield "data: [DONE]\n\n"
+    
     
     
     

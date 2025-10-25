@@ -1,14 +1,12 @@
-import asyncio
 import json
-from time import time
 from typing import List, Literal, TypedDict
 from ollama import ChatResponse, chat
 from pydantic import BaseModel
 from business.rules import validate_letter_of_credit
-from llm.qween_llm import qween_llm, write_why_a_document_is_invalid
+from llm.llm import  llm_generate, write_email_why_a_document_is_invalid, write_why_a_document_is_invalid
 from models.chat_models import AnalyseLCRequest
 from langgraph.types import interrupt, Command
-
+from langgraph.checkpoint.memory import InMemorySaver
 from models.documents_models import (
     BillOfLading,
     CertificateOfOrigin,
@@ -50,15 +48,14 @@ class RequiredDocuments(BaseModel):
 
 def  validate_documents(state: State) -> State:
     """Validate that all required documents are present in the state."""
-    print('starting document validation...')
+    
     writer = get_stream_writer()
-    writer('Validating provided documents...')
-    response: ChatResponse = qween_llm(
+    writer('Validate that all required documents are present ... \n')
+    response: ChatResponse = llm_generate(
         prepare_messages(state["request"], prompt_instruction_validate_documents),
         RequiredDocuments.model_json_schema(),
     )
     
-    writer("Starting document validation...\n")
     foundedDocuments = RequiredDocuments(**json.loads(response.message.content))
     is_valid = set(foundedDocuments.types) == set(required_documents)
     state["is_valid"] = is_valid
@@ -76,8 +73,8 @@ def  validate_documents(state: State) -> State:
 def extract_documents_info(state: State) -> State:
     """Extract information from the documents and store it in the state."""
     writer = get_stream_writer()
-    writer('Trying extracting informations from documents' + "\n")
-    response = qween_llm(
+    writer('Trying extracting documents info' + "\n")
+    response = llm_generate(
         prepare_messages(state["request"], prompt_instruction_extract_documents_info),
         DocumentsModel.model_json_schema(),
     )
@@ -121,8 +118,6 @@ def validate_information(state: State) -> State:
     result = validate_letter_of_credit(state["documents"])
     state["is_valid"] = result.is_compliant
     state["non_compliance_reasons"] = result.reasons
-    print('----------------------------------------')
-    print("Validation result:", result)
     return state
 
 def generate_report(state: State) -> State:
@@ -134,10 +129,9 @@ def generate_report(state: State) -> State:
 def handle_invalide_documents(state: State) -> State:
     """Handle the case where documents are invalid."""
     print("Handling invalid documents.")
-    writer = get_stream_writer()
-    writer("The provided documents are invalid for the following reasons:\n")
     reasons = state.get("non_compliance_reasons", [])
-    # write_why_a_document_is_invalid(reasons)
+    write_why_a_document_is_invalid(reasons)
+    write_email_why_a_document_is_invalid(reasons)
     return state
 
 
@@ -201,4 +195,5 @@ def compile_graph():
     builder.add_edge("handle_invalide_documents", 'ask_for_sending_email')
     builder.add_edge("send_email", END)
     
-    return builder.compile()
+    checkpointer = InMemorySaver()
+    return builder.compile(checkpointer=checkpointer)

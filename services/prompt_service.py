@@ -1,11 +1,7 @@
 from typing import List
 
 
-from models.chat_models import (
-    AnalyseLCRequest,
-    Image,
-    Document,
-)
+from models.chat_models import AnalyseLCRequest
 from tools.tools import pdf_base64_to_images_base64
 
 def prepare_messages(

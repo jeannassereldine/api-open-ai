@@ -14,3 +14,12 @@ class Document(BaseModel):
 class AnalyseLCRequest(BaseModel):
     images: List[Image] = Field(default_factory=list)
     documents: List[Document] = Field(default_factory=list)
+    
+    
+    
+class ResumeRequest(BaseModel):
+    thread_id: str
+    interrupt_id: str
+    answer: bool
+    
+    

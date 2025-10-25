@@ -1,6 +1,7 @@
+from langgraph.types import Command
 from fastapi import APIRouter
 from starlette.responses import StreamingResponse
-from models.chat_models import AnalyseLCRequest
+from models.chat_models import AnalyseLCRequest, ResumeRequest
 from services.chat_service import _resp_async_generator
 import time
 
@@ -9,8 +10,10 @@ router = APIRouter()
 
 
 @router.post("/analyse_lc_documents")
-async def chat_completions(request: AnalyseLCRequest):
-    # print(request)
- return StreamingResponse(_resp_async_generator(request), media_type="application/x-ndjson")
+async def chat_completions(req: AnalyseLCRequest):
+ return StreamingResponse(_resp_async_generator(req), media_type="application/x-ndjson")
 
   
+@router.post("/resume")
+async def resume_workflow(req: ResumeRequest):
+   return StreamingResponse(_resp_async_generator(req), media_type="application/x-ndjson")
