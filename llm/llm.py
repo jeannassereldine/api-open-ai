@@ -1,72 +1,70 @@
 from typing import List
-from ollama import ChatResponse, chat
 from langgraph.config import get_stream_writer
 from dotenv import load_dotenv
 import os
-
+from langchain_ollama import ChatOllama
+from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 load_dotenv()
 
-model = os.getenv('OLLAMA_MODEL')
+model_name = os.getenv("OLLAMA_MODEL")
+llm = ChatOllama(model=model_name)
 
-def llm_generate(messages, format) -> ChatResponse:
-    return chat(
-        stream=False,
-        model=model,
-        messages=messages,
-        format=format)
+
+def llm_generate(messages, format) -> str:
+    llm.with_structured_output(format)
+    response = llm.invoke(messages)
+    return response.content
 
 
 def write_why_a_document_is_invalid(reasons: List[str]):
     writer = get_stream_writer()
-    print("Document invalid reason:", reasons)
-    writer("Start generating a report about why you document is invalid\n")
+    llm = ChatOllama(model=model_name)
+    writer("Start generating a report explaining why your document is invalid.\n")
     reason_str = "\n".join(f"- {r}" for r in reasons)
-    stream = chat(
-        stream=True,
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": """You are an assistant that helps users understand why their documents are invalid, we are talking about letter of credit. 
-             Don't use the document name as it's , example write certificate of origin instead of CertificateOfOrigin """,
-            },
-            {
-                "role": "user",
-                "content": f"The following reasons were found for document invalidity:\n{reason_str}\n Please explain.",
-            },
-        ],
-    )
-    for chunk in stream:
-        if chunk.message.content:
-            writer(chunk.message.content)
+    messages = [
+    SystemMessage(
+        content=(
+            "You are an expert assistant specialized in letters of credit (LC). your role is just to tell the user what are the missed documents"
+            "write a meduim paragraph"
+        )
+    ),
+    HumanMessage(
+        content=(
+            f"Please find the missed documents here:\n{reason_str}\n\n"
+        )
+    ),
+    ]
+
+
+    for chunk in llm.stream(messages):
+        writer(chunk.text)
 
 
 def write_email_why_a_document_is_invalid(reasons: List[str]):
     writer = get_stream_writer()
-    writer("Start preparing an email ready to be sent to the client")
+    writer("Start preparing an email ready to be sent to the client\n")
     reason_str = "\n".join(f"- {r}" for r in reasons)
-    stream = chat(
-        stream=True,
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a knowledgeable assistant specialized in letters of credit. "
-                    "Your task is to help users clearly explain why specific trade documents are invalid. "
-                    "When referring to documents, use their natural names (e.g., 'certificate of origin' "
-                    "instead of 'CertificateOfOrigin'). Write in a professional and concise tone suitable for business email communication."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"The following reasons were found for document invalidity:\n{reason_str}\n\n"
-                    "Please draft a medium-length professional email that politely explains these issues."
-                ),
-            },
-        ],
-    )
-    for chunk in stream:
-        if chunk.message.content:
-            writer(chunk.message.content)
+ 
+
+    messages = [
+        SystemMessage(
+            content=(
+                "You are a knowledgeable assistant specialized in letters of credit. "
+                "Your task is to help users clearly explain why specific trade documents are invalid. "
+                "When referring to documents, use their natural names (e.g., 'certificate of origin' "
+                "instead of 'CertificateOfOrigin'). Write in a professional and concise tone suitable "
+                "for business email communication."
+            )
+        ),
+        HumanMessage(
+            content=(
+                f"The following reasons were found for document invalidity:\n{reason_str}\n\n"
+                "Please draft a medium-length professional email that politely explains these issues."
+            )
+        ),
+    ]
+
+
+    for chunk in llm.stream(messages):
+        writer(chunk.text)

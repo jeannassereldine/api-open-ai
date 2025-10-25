@@ -14,6 +14,6 @@ async def chat_completions(req: AnalyseLCRequest):
  return StreamingResponse(_resp_async_generator(req), media_type="application/x-ndjson")
 
   
-@router.post("/resume")
+@router.post("/resume_analysing_lc_document")
 async def resume_workflow(req: ResumeRequest):
    return StreamingResponse(_resp_async_generator(req), media_type="application/x-ndjson")

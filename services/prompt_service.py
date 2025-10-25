@@ -1,42 +1,54 @@
 from typing import List
-
-
 from models.chat_models import AnalyseLCRequest
 from tools.tools import pdf_base64_to_images_base64
 
-def prepare_messages(
-    request: AnalyseLCRequest, system_instruction: str
-) -> List[dict]:
+def prepare_messages(request: AnalyseLCRequest, system_instruction: str) -> List[dict]:
     """
     Convert AnalyseLCRequest messages into a list of dicts ready for the client.
     """
     prepared_messages = []
 
     for img in request.images:
-      url = img.image_url_base64
-      url = url.split(",")[1] if "," in url else url 
-      prepared_messages.append({"role": 'user', "images": [url]}) 
-                
-    for doc in request.documents:
-         pdf_base64 = doc.file_data_base64
-         prepared_messages.append(
-                    {
-                            "role": 'user',
-                            "images": [
-                                image
-                                for image in pdf_base64_to_images_base64(pdf_base64)
-                            ],
-                        }
-                    )                
-
-    prepared_messages.append(
+        url = img.image_url_base64
+        image_data = url.split(",")[1] if "," in url else url
+        prepared_messages.append(
             {
-                "role": "system",
-                "content": system_instruction,
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source_type": "base64",
+                        "data": image_data,
+                        "mime_type": "image/jpeg",
+                    },
+                ],
             }
         )
-    return prepared_messages
 
+    for doc in request.documents:
+        pdf_base64 = doc.file_data_base64
+        prepared_messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source_type": "base64",
+                        "data": image,
+                        "mime_type": "image/jpeg",
+                    }
+                    for image in pdf_base64_to_images_base64(pdf_base64)
+                ],
+            }
+        )
+
+    prepared_messages.append(
+        {
+            "role": "system",
+            "content": system_instruction,
+        }
+    )
+    return prepared_messages
 
 
 prompt_instruction_validate_documents = """
@@ -53,7 +65,7 @@ prompt_instruction_validate_documents = """
 
 prompt_instruction_extract_documents_info = """
   You are a precise AI assistant that extracts structured data from document images.
-    Extract data following this structure exactly:
+  Extract data following this structure exactly:
 {
  Exemple of output:
   "letter_of_credit": {

@@ -22,20 +22,18 @@ async def _resp_async_generator(req:AnalyseLCRequest | ResumeRequest) -> AsyncGe
     thread_id =  str(uuid.uuid4()) if  isinstance(req,AnalyseLCRequest)  else req.thread_id
     config = {"configurable": {"thread_id":  thread_id}}
     input =   ({"request": req, "is_valid": False} if  isinstance(req,AnalyseLCRequest) 
-             else  Command(resume=req.answer, interrupt_id=req.interrupt_id))
+             else  Command(resume=req.answer))
     index = 0
 
     for event_type, payload in graph.stream(
         input=input, stream_mode=["custom", "updates"], config=config
     ):
-        print("Yielding chunk:", (event_type, payload))
-
         # Handle INTERRUPT (pause and ask user)
         if event_type == "updates" and "__interrupt__" in payload:
             interrupt_obj = payload["__interrupt__"][0]
             question = interrupt_obj.value.get("question")
             interrupt_id = interrupt_obj.id
-            yield f"event: interrupt\ndata: {json.dumps({ 'question': question, 'interruptId': interrupt_id , 'thread_id':thread_id })}\n\n"
+            yield f"event: interrupt\ndata: {json.dumps({ 'question': question, 'interrupt_id': interrupt_id , 'thread_id':thread_id })}\n\n"
             continue
 
         # Handle CUSTOM (normal stream text from nodes)
