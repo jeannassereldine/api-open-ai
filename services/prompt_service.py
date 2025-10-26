@@ -1,6 +1,7 @@
 from typing import List
 from models.chat_models import AnalyseLCRequest
 from tools.tools import pdf_base64_to_images_base64
+from langgraph.config import get_stream_writer
 
 def prepare_messages(request: AnalyseLCRequest, system_instruction: str) ->tuple[List[dict], List[str]]:
     """
@@ -8,7 +9,9 @@ def prepare_messages(request: AnalyseLCRequest, system_instruction: str) ->tuple
     """
     prepared_messages = []
     images = []
+    writer = get_stream_writer()
     for img in request.images:
+        writer("Uploading images...")
         url = img.image_url_base64
         image_data = url.split(",")[1] if "," in url else url
         images.append(image_data)
@@ -25,8 +28,9 @@ def prepare_messages(request: AnalyseLCRequest, system_instruction: str) ->tuple
                 ],
             }
         )
-
+    writer("Images uploaded successfully.\n")
     for doc in request.documents:
+        writer(f"Processing document ...\n")
         pdf_base64 = doc.file_data_base64
         temp_images = pdf_base64_to_images_base64(pdf_base64)
         images.extend(temp_images) 
@@ -44,6 +48,7 @@ def prepare_messages(request: AnalyseLCRequest, system_instruction: str) ->tuple
                 ],
             }
         )
+    writer(f"Document processed successfully.\n") 
        
     prepared_messages.append(
         {

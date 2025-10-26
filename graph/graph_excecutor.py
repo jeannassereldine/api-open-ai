@@ -30,17 +30,12 @@ from services.prompt_service import (
     prompt_instruction_validate_documents,
 )
 
-
-
-
-
 required_documents = [
     "LetterOfCredit",
     "CommercialInvoice",
     "BillOfLading",
     "CertificateOfOrigin",
 ]
-
 
 class RequiredDocuments(BaseModel):
     types: List[
@@ -52,15 +47,13 @@ class RequiredDocuments(BaseModel):
 
 def validate_documents(state: State) -> State:
     """Validate that all required documents are present in the state."""
-
     writer = get_stream_writer()
-    writer("Validate that all required documents are present ... \n")
     messages, _ =  prepare_messages(state["request"], prompt_instruction_validate_documents)
     response = llm_generate(
        messages,
        RequiredDocuments,
     )
-    print('response', response)
+    writer("Checking for required documents...\n")
 
     foundedDocuments = RequiredDocuments(**json.loads(response))
     is_valid = set(foundedDocuments.types) == set(required_documents)
@@ -73,15 +66,16 @@ def validate_documents(state: State) -> State:
             f"Missing required documents: {', '.join(missing_docs)}"
         )
         state["non_compliance_reasons"] = non_compliance_reasons
+        writer("Missing required documents.\n") 
     else:
-        writer("All required documents are present and valid.\n")
+        writer("All required documents are present.\n")
     return state
 
 
 def extract_documents_info(state: State) -> State:
     """Extract information from the documents and store it in the state."""
     writer = get_stream_writer()
-    writer("Trying extracting documents info" + "\n")
+    writer("Extracting information from documents...\n")
     messages,images = prepare_messages(state["request"], prompt_instruction_extract_documents_info)
     state['images'] = images
     response = llm_generate(messages, DocumentsModel)
@@ -117,7 +111,8 @@ def extract_documents_info(state: State) -> State:
 
 def validate_information(state: State) -> State:
     """Validate the extracted information from the documents."""
-    print("state['documents']",state['documents'])
+    writer = get_stream_writer()
+    writer("Checking business rules\n")
     result = validate_letter_of_credit(state["documents"])
     state["is_valid"] = result.is_compliant
     state["non_compliance_reasons"] = result.reasons
@@ -127,29 +122,29 @@ def validate_information(state: State) -> State:
 def generate_report(state: State) -> State:
     """Generate a report based on the validated documents."""
     # For simplicity, let's just print a message.
-    
+    writer = get_stream_writer()
+    writer("Generating report and saving data...\n")
     generate_document_report_abou_lc(state)
-    print("Generating report based on the documents")
     paths = save_images(state)
     state['documents'].images = paths
     save_document(state['documents'])
+    writer("\nReport generated and data saved successfully.\nValidation complete.\n")
     return state
 
-def handle_invalide_documents(state: State) -> State:
+def handle_invalid_documents(state: State) -> State:
     """Handle the case where documents are invalid."""
-    print("Handling invalid documents.")
     write_why_a_document_is_invalid(state)
     return state
 
 
-def ask_for_writing_email_node(
+def ask_to_write_email_node(
     state: State,
 ) -> Command[Literal["write_email", "__end__"]]:
     # Pause execution; payload shows up under result["__interrupt__"]
     print("Asking user for email sending approval...")
     is_approved = interrupt(
         {
-            "question": "Do you want to prepare an email explaining why his document was rejected?",
+            "question": "Would you like to prepare an email explaining the reason these documents was rejected?",
         }
     )
 
@@ -170,7 +165,7 @@ def route_by_state(state: State) -> str:
     if state["is_valid"]:
         return "ok"
     else:
-        return "invalide_documents"  # In a real scenario, you might route to a different node for handling invalid cases.
+        return "invalid_documents"  # In a real scenario, you might route to a different node for handling invalid cases.
 
 
 def compile_graph():
@@ -180,15 +175,15 @@ def compile_graph():
     builder.add_node("extract_documents_info", extract_documents_info)
     builder.add_node("validate_information", validate_information)
     builder.add_node("generate_report", generate_report)
-    builder.add_node("handle_invalide_documents", handle_invalide_documents)
-    builder.add_node("ask_for_writing_email", ask_for_writing_email_node)
+    builder.add_node("handle_invalid_documents", handle_invalid_documents)
+    builder.add_node("ask_to_write_email", ask_to_write_email_node)
     builder.add_node("write_email", write_email_node)
 
     builder.add_conditional_edges(
         "validate_documents",
         route_by_state,
         {
-            "invalide_documents": "handle_invalide_documents",
+            "invalid_documents": "handle_invalid_documents",
             "ok": "extract_documents_info",
         },
     )
@@ -197,7 +192,7 @@ def compile_graph():
         "extract_documents_info",
         route_by_state,
         {
-            "invalide_documents": "handle_invalide_documents",
+            "invalid_documents": "handle_invalid_documents",
             "ok": "validate_information",
         },
     )
@@ -205,12 +200,12 @@ def compile_graph():
     builder.add_conditional_edges(
         "validate_information",
         route_by_state,
-        {"invalide_documents": "handle_invalide_documents", "ok": "generate_report"},
+        {"invalid_documents": "handle_invalid_documents", "ok": "generate_report"},
     )
 
     builder.add_edge("generate_report", END)
-    builder.add_edge("handle_invalide_documents", "ask_for_writing_email")
-    builder.add_edge("ask_for_writing_email", END)
+    builder.add_edge("handle_invalid_documents", "ask_to_write_email")
+    builder.add_edge("ask_to_write_email", END)
     builder.add_edge("write_email", END)
 
     checkpointer = InMemorySaver()

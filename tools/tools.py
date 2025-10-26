@@ -33,6 +33,6 @@ def pdf_base64_to_images_base64(pdf_base64: str, dpi=200, img_format="PNG"):
         img.save(buffer, format=img_format)
         img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
         base64_images.append(img_b64)
-    writer('PDF converted to images')
+    writer('PDF converted to images\n')
 
     return base64_images
