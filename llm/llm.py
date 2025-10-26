@@ -1,18 +1,16 @@
 from typing import List
 
-from langgraph.config import get_stream_writer
 from dotenv import load_dotenv
+from langgraph.config import get_stream_writer
 import os
-
 # from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.messages import SystemMessage, HumanMessage
-
 from models.state import State
 
-
 load_dotenv()
+
 
 ollama_model_name = os.getenv("OLLAMA_MODEL")
 openai_model_name = os.getenv("OPEN_AI_MODEL")
