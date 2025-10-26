@@ -5,8 +5,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="OpenAI-compatible API")
 
-
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # or ["*"] to allow all

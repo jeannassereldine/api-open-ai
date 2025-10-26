@@ -130,7 +130,8 @@ def generate_report(state: State) -> State:
     
     generate_document_report_abou_lc(state)
     print("Generating report based on the documents")
-    save_images(state)
+    paths = save_images(state)
+    state['documents'].images = paths
     save_document(state['documents'])
     return state
 
