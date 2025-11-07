@@ -7,6 +7,7 @@ import os
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.messages import SystemMessage, HumanMessage
+from pydantic import BaseModel
 from models.state import State
 
 load_dotenv()
@@ -18,10 +19,13 @@ openai_model_name = os.getenv("OPEN_AI_MODEL")
 llm = ChatOpenAI(model=openai_model_name, temperature=0)
 
 
-def llm_generate(messages, format) -> str:
-    llm.with_structured_output(format)
-    response = llm.invoke(messages)
-    return response.content
+def llm_generate_structured_output(messages, format:BaseModel) -> BaseModel:
+    structured_llm = llm.with_structured_output(format)
+    
+    response = structured_llm.invoke(messages)
+    print('respnse', response)
+    return response
+
 
 
 def write_why_a_document_is_invalid(state: State):

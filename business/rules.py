@@ -1,4 +1,4 @@
-from datetime import  datetime
+from datetime import  datetime, timezone
 from typing import List
 from pydantic import BaseModel
 from models.documents_models import DocumentsModel
@@ -27,7 +27,7 @@ def validate_letter_of_credit(documents: DocumentsModel) -> LCValidationResult:
         print(reasons)
 
     # --- Rule 2: LC must not be expired ---
-    today = datetime.today()
+    today = datetime.now(timezone.utc)
     if lc.expiry_date < today:
         reasons.append(f"LC expired on {lc.expiry_date}, today is {today}.")
 

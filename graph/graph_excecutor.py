@@ -1,25 +1,20 @@
 import json
-from typing import List, Literal, TypedDict
+from typing import List, Literal
 from pydantic import BaseModel
 from business.rules import validate_letter_of_credit
 from db.save_images import save_images
 from db.save_document import save_document
 from llm.llm import (
     generate_document_report_abou_lc,
-    llm_generate,
+    llm_generate_structured_output,
     write_email_why_a_document_is_invalid,
     write_why_a_document_is_invalid,
 )
 from models.chat_models import AnalyseLCRequest
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.memory import InMemorySaver
-from models.documents_models import (
-    BillOfLading,
-    CertificateOfOrigin,
-    CommercialInvoice,
-    DocumentsModel,
-    LetterOfCredit,
-)
+from models.documents_models import DocumentsModel
+  
 from langgraph.graph import StateGraph, END
 from langgraph.config import get_stream_writer
 
@@ -49,13 +44,13 @@ def validate_documents(state: State) -> State:
     """Validate that all required documents are present in the state."""
     writer = get_stream_writer()
     messages, _ =  prepare_messages(state["request"], prompt_instruction_validate_documents)
-    response = llm_generate(
+    response = llm_generate_structured_output(
        messages,
        RequiredDocuments,
     )
     writer("Checking for required documents...\n")
 
-    foundedDocuments = RequiredDocuments(**json.loads(response))
+    foundedDocuments = response
     is_valid = set(foundedDocuments.types) == set(required_documents)
     state["is_valid"] = is_valid
 
@@ -78,29 +73,11 @@ def extract_documents_info(state: State) -> State:
     writer("Extracting information from documents...\n")
     messages,images = prepare_messages(state["request"], prompt_instruction_extract_documents_info)
     state['images'] = images
-    response = llm_generate(messages, DocumentsModel)
     try:
-        print('response', response)
-        letterofCredit = LetterOfCredit(
-            **json.loads(response).get("letter_of_credit", None)
-        )
-        invoice = CommercialInvoice(
-            **json.loads(response).get("commercial_invoice", None)
-        )
-        landing = BillOfLading(
-            **json.loads(response).get("bill_of_lading", None)
-        )
-        certificate = CertificateOfOrigin(
-            **json.loads(response).get("certificate_of_origin", None)
-        )
-        documentsModel = DocumentsModel(
-            letter_of_credit=letterofCredit,
-            commercial_invoice=invoice,
-            bill_of_lading=landing,
-            certificate_of_origin=certificate,
-        )
+        documentsModel = llm_generate_structured_output(messages, DocumentsModel)
         state["documents"] = documentsModel
         state["is_valid"] = True
+        print('documentsModel', documentsModel)
     except Exception as e:
         print("Error parsing documents:", e)
         state["is_valid"] = False
